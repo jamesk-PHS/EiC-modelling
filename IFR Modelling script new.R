@@ -1,12 +1,15 @@
 
+
+# Libraries ---------------------------------------------------------------
+
 library(tidyverse)
 library(patchwork)
 library(broom)
 library(boot)
 
 
-setwd("/conf/EIC/Personal/James/Checks on data/2025-11-11 Modelling")
 
+# Loading data ------------------------------------------------------------
 
 data <- read.csv("Data/Overview TDE - data table (3).csv",
                  fileEncoding = "UTF-16LE",
@@ -16,6 +19,8 @@ data <- read.csv("Data/Overview TDE - data table (3).csv",
   filter(hb_name != "PUBLIC HEALTH SCOTLAND")
 
 
+# Prepping data for modelling ---------------------------------------------
+
 IFR_split_data <- data |> 
   filter(measure_id == "IFR") |>
   select(-calc_rate) |> 
@@ -23,6 +28,7 @@ IFR_split_data <- data |>
   mutate(across(c(8:9), as.numeric)) |>  
   rename(OBD = denominator)
 
+# Let's see the distribution for IFR
 data |> 
   filter(measure_id == "IFR") |>
   mutate(across(c(9:11), as.numeric)) |> 
@@ -54,6 +60,8 @@ modelling_data |>
 
 
 
+# Modelling ---------------------------------------------------------------
+
 ## 75% of the sample size
 smp_size <- floor(0.75 * nrow(modelling_data))
 
@@ -64,6 +72,9 @@ train_ind <- sample(seq_len(nrow(modelling_data)), size = smp_size)
 train <- modelling_data[train_ind, ]
 test <- modelling_data[-train_ind, ]
 
+
+
+# Logistic regression -----------------------------------------------------
 
 model_1 <- glm(formula = "IFR ~  OBD + PTA + SSUBA + SSUEO + VAC",
                family = "binomial",
@@ -76,6 +87,7 @@ glance(model_1)
 summary(model_1)
 
 
+# Poisson regression ------------------------------------------------------
 
 model_2 <- glm(formula = "IFR ~  OBD + PTA + SSUBA + SSUEO + VAC",
                family = "poisson",

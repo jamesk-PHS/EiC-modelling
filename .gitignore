@@ -21,6 +21,7 @@
 # 'data' folder #
 Data/
 Plots/
+Example plots/
 
 # Common text files that may contain data #
 *.[cC][sS][vV]
