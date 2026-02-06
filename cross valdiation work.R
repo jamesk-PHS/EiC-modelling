@@ -1,5 +1,4 @@
 
-
 # Libraries ---------------------------------------------------------------
 
 library(tidyverse)
@@ -34,7 +33,17 @@ data |>
   mutate(across(c(9:11), as.numeric)) |> 
   ggplot(aes(numerator)) +
   geom_histogram()
+
+
+testthat::test_that("Poissoin regression is relevant?", {
   
+  testthat::expect_equal(mean(IFR_split_data$IFR, na.rm = T), var(IFR_split_data$IFR, na.rm = T))
+  
+})
+
+
+
+
 
 other_data <- data |> 
   filter(measure_id != "IFR") |>
@@ -46,6 +55,15 @@ other_data <- data |>
 modelling_data <- left_join(IFR_split_data, other_data) |> 
   select(c("OBD", "IFR", "PTA", "SSUBA", "SSUEO", "VAC")) |>  
   na.omit()
+
+
+
+# Overview ---------------------------------------------------------------
+
+GGally::ggpairs(modelling_data)
+
+# Visualize the correlation matrix
+corrplot::corrplot(cor(modelling_data), method = "circle")
 
 
 #   Class imbalance check -------------------------------------------------
@@ -62,51 +80,75 @@ modelling_data |>
 
 # Modelling ---------------------------------------------------------------
 
+map(seq(5), function(x){
+  
+  assign(str_glue("train_{x}"),
+         tibble(),
+         envir = globalenv())
+  
+  
+  assign(str_glue("test_{x}"),
+         tibble(),
+         envir = globalenv())
+  
+  
+  
+})
+
+
+map(seq(5), function(x){
+
 ## 75% of the sample size
-smp_size <- floor(0.75 * nrow(modelling_data))
+  smp_size <- floor(0.75 * nrow(modelling_data))
+  
+  ## set the seed to make your partition reproducible
+  set.seed(x)
+  
+  train_ind <- sample(seq_len(nrow(modelling_data)), size = smp_size)
+  
+  
+  
+  assign(str_glue("train_{x}"),
+         modelling_data[train_ind, ],
+         envir = globalenv())
+  
+  assign(str_glue("test_{x}"),
+         modelling_data[-train_ind, ],
+         envir = globalenv())
+  
+  
+})
 
-## set the seed to make your partition reproducible
-set.seed(123)
-train_ind <- sample(seq_len(nrow(modelling_data)), size = smp_size)
 
-train <- modelling_data[train_ind, ]
-test <- modelling_data[-train_ind, ]
+test <- list(test_1, test_2, test_3, test_4, test_5) 
+train <- list(train_1, train_2, train_3, train_4, train_5) 
 
+rm(test_1, test_2, test_3, test_4, test_5,
+   train_1, train_2, train_3, train_4, train_5)
 
-
-# Logistic regression -----------------------------------------------------
-
-model_1 <- glm(formula = "IFR ~  OBD + PTA + SSUBA + SSUEO + VAC",
-               family = "binomial",
-               data = train |> 
-                  mutate(IFR = if_else(IFR == 0, 0, 1))
-               )
-
-tidy(model_1)
-glance(model_1)
-summary(model_1)
 
 
 # Poisson regression ------------------------------------------------------
 
-model_2 <- glm(formula = "IFR ~  OBD + PTA + SSUBA + SSUEO + VAC",
-               family = "poisson",
-               data = train)
+map(train, function(x){
+  
+  
+  model <- glm(formula = "IFR ~  OBD + PTA + SSUBA + SSUEO + VAC",
+      family = "quasipoisson",
+      data = trainp[x])
+  
+  tidy(model)
+  glance(model)
+  summary(model)
+  
+  
+})
+  
 
-tidy(model_2)
-glance(model_2)
-summary(model_2)
+train[1]
+  
 
 
-
-
-model_3 <- glm(formula = IFR ~  OBD + PTA + SSUBA + SSUEO + VAC,
-               family = "Gamma", 
-               data = train)
-
-tidy(model_2)
-glance(model_2)
-summary(model_1)
 
 
 

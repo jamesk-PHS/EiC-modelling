@@ -1,0 +1,90 @@
+---
+title: "EiC Falls model comparison"
+author: "James Kilgour"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output: 
+  html_document:
+    css: phs_style.css
+    toc: true
+    toc_float: true
+keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Copy in the PHS style CSS file if required
+if (!file.exists(file.path(getwd(), "phs_style.css"))) {
+  phstemplates::add_stylecss(getwd(), auto_open = FALSE)
+}
+
+# 1. Libraries ---------------------------------------------------------------
+
+library(tidyverse)
+library(patchwork)
+library(broom)
+library(boot)
+library(MASS)
+library(lme4)
+library(glmmTMB)
+library(pscl)
+
+# 2. Loading data ------------------------------------------------------------
+
+data <- read.csv("Data/Overview TDE - data table (3).csv",
+                 fileEncoding = "UTF-16LE",
+                 sep = "\t", header = T) |> 
+  as_tibble() |> 
+  janitor::clean_names() |> 
+  filter(hb_name != "PUBLIC HEALTH SCOTLAND") |> 
+  mutate(measure_date_my = dmy(measure_date_my),
+         sub_location_code = str_to_upper(sub_location_code)) |> 
+  filter(measure_date_my >= "2024-04-01")
+
+
+# 3. Prepping data for modelling ---------------------------------------------
+
+IFR_split_data <- data |> 
+  filter(measure_id == "IFR") |>
+  dplyr::select(-calc_rate) |> 
+  pivot_wider(names_from = measure_id, values_from = numerator) |>  
+  mutate(across(c(8:9), as.numeric)) |>  
+  rename(OBD = denominator)
+
+
+other_data <- data |> 
+  filter(measure_id != "IFR") |>
+  dplyr::select(-c(numerator, denominator)) |> 
+  pivot_wider(names_from = measure_id, values_from = calc_rate) |>  
+  mutate(across(c(9:37), as.numeric))
+
+
+modelling_data <- left_join(IFR_split_data, other_data) |> 
+  dplyr::select(IFR, OBD, VAC, PTA, SSUBA, SSUEO) |>  
+  na.omit() |> 
+  # Removing outlier/high leverage points
+  filter(if_all(c(4:6), ~. <= 1),
+         if_all(c(4:6), ~. >= 0)) |> 
+  mutate(across(c(3:6), ~.x*100)) |>  
+  na.omit()
+
+```
+
+# Context
+
+- Tableau Overview TDE data covering March 2024 onwards were extracted from on 11 November 2025
+- Statistical modelling with and without EiC reference data took place.
+- Results below outline the findings of 
+
+# Distribution of falls data
+
+```{r}
+# Let's see the distribution for IFR
+data |> 
+  filter(measure_id == "IFR") |>
+  mutate(across(c(9:11), as.numeric)) |> 
+  ggplot(aes(numerator, fill = if_else(numerator == 0, TRUE, FALSE))) +
+  geom_histogram(show.legend = F) + 
+  labs(x = "Falls count",
+       y = "Count")
+```
